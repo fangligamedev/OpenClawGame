@@ -1,0 +1,13 @@
+{
+  "name": "openclaw-game",
+  "version": "0.4.0",
+  "description": "OpenClaw CorpSim - Multi-agent Company Simulation Game",
+  "scripts": {
+    "build": "cd server && npm install && npm run build",
+    "start": "cd server && npm start",
+    "dev": "cd server && npm run dev"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
