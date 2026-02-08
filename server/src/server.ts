@@ -65,14 +65,16 @@ wss.on('connection', (ws, req) => {
         sessionId = data.sessionId;
         
         // Subscribe to session updates
-        unsubscribe = sessionService.subscribe(sessionId, (update) => {
-          if (ws.readyState === ws.OPEN) {
-            ws.send(JSON.stringify(update));
-          }
-        });
+        if (sessionId) {
+          unsubscribe = sessionService.subscribe(sessionId, (update) => {
+            if (ws.readyState === ws.OPEN) {
+              ws.send(JSON.stringify(update));
+            }
+          });
+        }
         
         // Send initial session state
-        const session = sessionService.getSession(sessionId);
+        const session = sessionId ? sessionService.getSession(sessionId) : null;
         if (session) {
           ws.send(JSON.stringify({
             type: 'connected',
