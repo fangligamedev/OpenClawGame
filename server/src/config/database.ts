@@ -72,13 +72,17 @@ export async function closePool(): Promise<void> {
 }
 
 // 初始化数据库表
-export async function initializeTables(): Promise<void> {
+export async function initializeTables(): Promise<boolean> {
   try {
     // 检查是否可以连接
-    await testConnection();
-    console.log('✅ Database tables ready');
+    const connected = await testConnection();
+    if (connected) {
+      console.log('✅ Database tables ready');
+      return true;
+    }
+    return false;
   } catch (error) {
     console.error('❌ Failed to initialize tables:', error);
-    throw error;
+    return false;
   }
 }

@@ -69,12 +69,16 @@ async function closePool() {
 async function initializeTables() {
     try {
         // 检查是否可以连接
-        await testConnection();
-        console.log('✅ Database tables ready');
+        const connected = await testConnection();
+        if (connected) {
+            console.log('✅ Database tables ready');
+            return true;
+        }
+        return false;
     }
     catch (error) {
         console.error('❌ Failed to initialize tables:', error);
-        throw error;
+        return false;
     }
 }
 //# sourceMappingURL=database.js.map

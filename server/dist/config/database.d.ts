@@ -6,5 +6,5 @@ export declare function query<T extends {
 } = any>(sql: string, params?: any[]): Promise<QueryResult<T>>;
 export declare function getClient(): Promise<PoolClient>;
 export declare function closePool(): Promise<void>;
-export declare function initializeTables(): Promise<void>;
+export declare function initializeTables(): Promise<boolean>;
 //# sourceMappingURL=database.d.ts.map

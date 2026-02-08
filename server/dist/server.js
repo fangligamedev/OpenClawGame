@@ -137,26 +137,26 @@ wss.on('connection', (ws, req) => {
 });
 // Initialize database and start server
 async function startServer() {
-    try {
-        // Initialize database
-        console.log('🔌 Connecting to database...');
-        await (0, database_1.initializeTables)();
+    // Initialize database (non-blocking)
+    console.log('🔌 Connecting to database...');
+    const dbConnected = await (0, database_1.initializeTables)();
+    if (dbConnected) {
         console.log('✅ Database initialized');
-        // Start server
-        server.listen(PORT, () => {
+    }
+    else {
+        console.log('⚠️ Database not available, using in-memory storage');
+    }
+    // Start server (always)
+    server.listen(PORT, () => {
+        if (dbConnected) {
             console.log(`🚀 CorpSim Server v0.4.0 running on port ${PORT}`);
-            console.log(`📊 API: http://localhost:${PORT}/api`);
-            console.log(`🔌 WebSocket: ws://localhost:${PORT}/ws`);
-        });
-    }
-    catch (error) {
-        console.error('❌ Failed to start server:', error);
-        // Start server anyway (will use in-memory fallback)
-        server.listen(PORT, () => {
+        }
+        else {
             console.log(`🚀 CorpSim Server v0.4.0 running on port ${PORT} (in-memory mode)`);
-            console.log(`⚠️  Database connection failed, using in-memory storage`);
-        });
-    }
+        }
+        console.log(`📊 API: http://localhost:${PORT}/api`);
+        console.log(`🔌 WebSocket: ws://localhost:${PORT}/ws`);
+    });
 }
 startServer();
 //# sourceMappingURL=server.js.map
