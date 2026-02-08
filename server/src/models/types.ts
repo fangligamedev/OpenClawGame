@@ -33,7 +33,7 @@ export interface AgendaItem {
   proposedByRole: ExecutiveRole;
   options: string[];
   votes: { [participantId: string]: string };
-  deadline: number;
+  deadline?: number;
   passed?: boolean;
   chosenOption?: string;
 }

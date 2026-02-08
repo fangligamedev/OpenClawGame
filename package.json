@@ -3,24 +3,26 @@
   "version": "0.4.0",
   "description": "OpenClaw CorpSim - Multi-agent Company Simulation Game",
   "scripts": {
-    "build": "cd server && npm ci && npx tsc",
-    "start": "cd server && node dist/server.js",
-    "dev": "cd server && npm run dev"
+    "build": "npx tsc -p server/tsconfig.json",
+    "start": "node server/dist/server.js",
+    "dev": "npx tsx watch server/src/server.ts"
   },
   "dependencies": {
-    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "ws": "^8.14.2",
-    "uuid": "^9.0.1"
+    "express": "^4.18.2",
+    "pg": "^8.11.3",
+    "uuid": "^9.0.1",
+    "ws": "^8.14.2"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17",
-    "@types/ws": "^8.5.10",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.19.33",
+    "@types/pg": "^8.10.9",
     "@types/uuid": "^9.0.7",
-    "@types/node": "^20.10.0",
-    "typescript": "^5.3.2",
-    "tsx": "^4.6.0"
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.6.0",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -1,17 +1,18 @@
 // src/routes/sessions.ts
 
 import { Router, Request, Response } from 'express';
-import { sessionService } from '../services/sessionService';
+import { dbSessionService as sessionService } from '../services/databaseSessionService';
+import { Session, Participant } from '../models/types';
 
 const router = Router();
 
 // GET /api/sessions - List all active sessions
-router.get('/', (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
-    const sessions = sessionService.listSessions();
+    const sessions = await sessionService.listSessions();
     res.json({
       success: true,
-      data: sessions.map(s => ({
+      data: sessions.map((s: Session) => ({
         id: s.id,
         companyName: s.companyName,
         quarter: s.quarter,
@@ -19,17 +20,18 @@ router.get('/', (req: Request, res: Response) => {
         participantCount: s.participants.length,
         createdAt: s.createdAt,
         availableRoles: ['ceo', 'cto', 'cmo'].filter(
-          role => !s.participants.some(p => p.role === role)
+          (role: string) => !s.participants.some((p: Participant) => p.role === role)
         ),
       })),
     });
   } catch (error) {
+    console.error('Error listing sessions:', error);
     res.status(500).json({ success: false, error: 'Failed to list sessions' });
   }
 });
 
 // POST /api/sessions - Create new session
-router.post('/', (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const { companyName, quarter, createdBy } = req.body;
     
@@ -40,7 +42,7 @@ router.post('/', (req: Request, res: Response) => {
       });
     }
 
-    const session = sessionService.createSession({
+    const session = await sessionService.createSession({
       companyName,
       quarter,
       createdBy,
@@ -57,14 +59,15 @@ router.post('/', (req: Request, res: Response) => {
       },
     });
   } catch (error) {
+    console.error('Error creating session:', error);
     res.status(500).json({ success: false, error: 'Failed to create session' });
   }
 });
 
 // GET /api/sessions/:id - Get session details
-router.get('/:id', (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const session = sessionService.getSession(req.params.id);
+    const session = await sessionService.getSession(req.params.id);
     
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session not found' });
@@ -79,7 +82,7 @@ router.get('/:id', (req: Request, res: Response) => {
         phase: session.phase,
         phaseStartedAt: session.phaseStartedAt,
         createdAt: session.createdAt,
-        participants: session.participants.map(p => ({
+        participants: session.participants.map((p: Participant) => ({
           id: p.id,
           agentId: p.agentId,
           agentName: p.agentName,
@@ -92,17 +95,18 @@ router.get('/:id', (req: Request, res: Response) => {
         messages: session.messages.slice(-50), // Last 50 messages
         companyState: session.companyState,
         availableRoles: ['ceo', 'cto', 'cmo'].filter(
-          role => !session.participants.some(p => p.role === role)
+          (role: string) => !session.participants.some((p: Participant) => p.role === role)
         ),
       },
     });
   } catch (error) {
+    console.error('Error getting session:', error);
     res.status(500).json({ success: false, error: 'Failed to get session' });
   }
 });
 
 // POST /api/sessions/:id/join - Join session
-router.post('/:id/join', (req: Request, res: Response) => {
+router.post('/:id/join', async (req: Request, res: Response) => {
   try {
     const { agentId, agentName, role, type } = req.body;
     
@@ -113,7 +117,7 @@ router.post('/:id/join', (req: Request, res: Response) => {
       });
     }
 
-    const result = sessionService.joinSession(req.params.id, {
+    const result = await sessionService.joinSession(req.params.id, {
       agentId,
       agentName,
       role,
@@ -132,12 +136,13 @@ router.post('/:id/join', (req: Request, res: Response) => {
       },
     });
   } catch (error) {
+    console.error('Error joining session:', error);
     res.status(500).json({ success: false, error: 'Failed to join session' });
   }
 });
 
 // POST /api/sessions/:id/messages - Send message
-router.post('/:id/messages', (req: Request, res: Response) => {
+router.post('/:id/messages', async (req: Request, res: Response) => {
   try {
     const { agentId, content, replyTo } = req.body;
     
@@ -148,7 +153,7 @@ router.post('/:id/messages', (req: Request, res: Response) => {
       });
     }
 
-    const result = sessionService.sendMessage(req.params.id, {
+    const result = await sessionService.sendMessage(req.params.id, {
       agentId,
       content,
       replyTo,
@@ -163,23 +168,40 @@ router.post('/:id/messages', (req: Request, res: Response) => {
       data: { message: result.message },
     });
   } catch (error) {
+    console.error('Error sending message:', error);
     res.status(500).json({ success: false, error: 'Failed to send message' });
   }
 });
 
+// GET /api/sessions/:id/messages - Get messages
+router.get('/:id/messages', async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const messages = await sessionService.getMessages(req.params.id, limit);
+    
+    res.json({
+      success: true,
+      data: messages,
+    });
+  } catch (error) {
+    console.error('Error getting messages:', error);
+    res.status(500).json({ success: false, error: 'Failed to get messages' });
+  }
+});
+
 // POST /api/sessions/:id/vote - Submit vote
-router.post('/:id/vote', (req: Request, res: Response) => {
+router.post('/:id/vote', async (req: Request, res: Response) => {
   try {
     const { agentId, agendaId, option, reasoning } = req.body;
     
-    if (!agentId || !agendaId || !option) {
+    if (!agentId || !agendaId || option === undefined) {
       return res.status(400).json({ 
         success: false, 
         error: 'agentId, agendaId, and option are required' 
       });
     }
 
-    const result = sessionService.submitVote(req.params.id, {
+    const result = await sessionService.submitVote(req.params.id, {
       agentId,
       agendaId,
       option,
@@ -195,12 +217,13 @@ router.post('/:id/vote', (req: Request, res: Response) => {
       data: { message: 'Vote recorded' },
     });
   } catch (error) {
+    console.error('Error submitting vote:', error);
     res.status(500).json({ success: false, error: 'Failed to submit vote' });
   }
 });
 
 // POST /api/sessions/:id/agenda - Add agenda item (for testing)
-router.post('/:id/agenda', (req: Request, res: Response) => {
+router.post('/:id/agenda', async (req: Request, res: Response) => {
   try {
     const { title, description, options, proposedBy } = req.body;
     
@@ -211,7 +234,7 @@ router.post('/:id/agenda', (req: Request, res: Response) => {
       });
     }
 
-    const success = sessionService.addAgendaItem(
+    const success = await sessionService.addAgendaItem(
       req.params.id,
       title,
       description,
@@ -228,12 +251,13 @@ router.post('/:id/agenda', (req: Request, res: Response) => {
       data: { message: 'Agenda item added' },
     });
   } catch (error) {
+    console.error('Error adding agenda:', error);
     res.status(500).json({ success: false, error: 'Failed to add agenda' });
   }
 });
 
 // POST /api/sessions/:id/phase - Transition phase (for testing)
-router.post('/:id/phase', (req: Request, res: Response) => {
+router.post('/:id/phase', async (req: Request, res: Response) => {
   try {
     const { phase } = req.body;
     
@@ -241,7 +265,7 @@ router.post('/:id/phase', (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'phase is required' });
     }
 
-    const success = sessionService.transitionPhase(req.params.id, phase);
+    const success = await sessionService.transitionPhase(req.params.id, phase);
 
     if (!success) {
       return res.status(400).json({ success: false, error: 'Failed to transition phase' });
@@ -252,6 +276,7 @@ router.post('/:id/phase', (req: Request, res: Response) => {
       data: { message: `Phase transitioned to ${phase}` },
     });
   } catch (error) {
+    console.error('Error transitioning phase:', error);
     res.status(500).json({ success: false, error: 'Failed to transition phase' });
   }
 });
