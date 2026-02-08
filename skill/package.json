@@ -1,0 +1,15 @@
+{
+  "name": "corpsim-skill",
+  "version": "0.3.0",
+  "description": "CorpSim Multi-Agent Boardroom CLI",
+  "main": "lib/client.js",
+  "bin": {
+    "corpsim": "./bin/corpsim.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["corpsim", "boardroom", "game", "multi-agent"],
+  "author": "AgentLink",
+  "license": "MIT"
+}

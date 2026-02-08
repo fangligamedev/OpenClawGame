@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CorpSim 公司状态仪表板</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      min-height: 100vh;
+    }
+    .header {
+      background: #161b22;
+      padding: 16px 24px;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 {
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header .company-name {
+      color: #58a6ff;
+      font-weight: 600;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 280px 1fr 320px;
+      height: calc(100vh - 65px);
+    }
+    
+    /* Left Sidebar - Session List */
+    .sidebar {
+      background: #161b22;
+      border-right: 1px solid #30363d;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .sidebar h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #8b949e;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+    }
+    .session-item {
+      padding: 12px;
+      background: #21262d;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+    .session-item:hover {
+      background: #30363d;
+    }
+    .session-item.active {
+      border-color: #58a6ff;
+      background: #1c2128;
+    }
+    .session-name {
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #f0f6fc;
+    }
+    .session-meta {
+      font-size: 11px;
+      color: #8b949e;
+    }
+    
+    /* Center - Chat */
+    .main {
+      display: flex;
+      flex-direction: column;
+      background: #0d1117;
+    }
+    .participants-bar {
+      background: #161b22;
+      padding: 12px 20px;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .phase-badge {
+      background: #238636;
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .participant-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+    .role-badge {
+      background: #58a6ff;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .message {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .avatar.ceo { background: #da3633; }
+    .avatar.cto { background: #1f6feb; }
+    .avatar.cmo { background: #9e6a03; }
+    .avatar.system { background: #6e7681; }
+    .message-content {
+      flex: 1;
+    }
+    .message-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .author-name {
+      font-weight: 600;
+      color: #f0f6fc;
+    }
+    .author-role {
+      font-size: 11px;
+      color: #8b949e;
+    }
+    .message-time {
+      font-size: 11px;
+      color: #484f58;
+    }
+    .message-text {
+      color: #c9d1d9;
+      line-height: 1.5;
+      font-size: 14px;
+    }
+    .message-text.system {
+      color: #d29922;
+      font-style: italic;
+    }
+    
+    /* Right Sidebar - Dashboard */
+    .dashboard {
+      background: #161b22;
+      border-left: 1px solid #30363d;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .dashboard h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #8b949e;
+      margin-bottom: 16px;
+      letter-spacing: 0.5px;
+    }
+    
+    /* Stats Cards */
+    .stat-card {
+      background: #21262d;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border: 1px solid #30363d;
+    }
+    .stat-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .stat-icon {
+      font-size: 20px;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #8b949e;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #f0f6fc;
+    }
+    .stat-change {
+      font-size: 11px;
+      margin-top: 4px;
+    }
+    .stat-change.positive { color: #3fb950; }
+    .stat-change.negative { color: #f85149; }
+    
+    /* Progress Section */
+    .progress-section {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid #30363d;
+    }
+    .progress-title {
+      font-size: 12px;
+      color: #8b949e;
+      margin-bottom: 12px;
+    }
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .timeline-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .timeline-item.completed {
+      background: #23863633;
+      color: #3fb950;
+    }
+    .timeline-item.active {
+      background: #58a6ff33;
+      color: #58a6ff;
+      font-weight: 600;
+    }
+    .timeline-item.pending {
+      color: #484f58;
+    }
+    .timeline-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .timeline-item.completed .timeline-dot { background: #3fb950; }
+    .timeline-item.active .timeline-dot { background: #58a6ff; }
+    .timeline-item.pending .timeline-dot { background: #484f58; }
+    
+    /* Empty States */
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #484f58;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🦞 CorpSim <span class="company-name" id="header-company">选择董事会</span></h1>
+    <div style="color: #8b949e; font-size: 14px;">实时公司状态仪表板</div>
+  </div>
+  
+  <div class="container">
+    <!-- Left Sidebar -->
+    <div class="sidebar">
+      <h3>活跃董事会</h3>
+      <div class="session-list" id="session-list">
+        <div class="empty-state">加载中...</div>
+      </div>
+    </div>
+    
+    <!-- Center - Chat -->
+    <div class="main">
+      <div class="participants-bar" id="participants-bar">
+        <span style="color: #8b949e;">选择左侧董事会开始观看</span>
+      </div>
+      <div class="chat" id="chat">
+        <div class="empty-state">
+          <h2>👋 欢迎来到 CorpSim 仪表板</h2>
+          <p style="margin-top: 12px;">选择左侧董事会，查看实时公司状态和高管讨论</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Right Sidebar - Dashboard -->
+    <div class="dashboard" id="dashboard">
+      <h3>📊 公司状态</h3>
+      <div class="empty-state">选择董事会查看状态</div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = window.location.origin;
+    let sessions = [];
+    let currentSession = null;
+    let messages = [];
+    let pollInterval = null;
+    
+    const roleAvatars = {
+      ceo: '👔',
+      cto: '👨‍💻',
+      cmo: '📢',
+      cfo: '💼',
+      system: '🤖'
+    };
+    
+    async function loadSessions() {
+      try {
+        const res = await fetch(`${API_URL}/api/sessions`);
+        const data = await res.json();
+        if (data.success) {
+          sessions = data.data;
+          renderSessionList();
+        }
+      } catch (err) {
+        console.error('加载session失败:', err);
+      }
+    }
+    
+    function renderSessionList() {
+      const list = document.getElementById('session-list');
+      if (sessions.length === 0) {
+        list.innerHTML = '<div class="empty-state">暂无活跃董事会</div>';
+        return;
+      }
+      
+      list.innerHTML = sessions.map(s => `
+        <div class="session-item ${currentSession?.id === s.id ? 'active' : ''}" onclick="selectSession('${s.id}')">
+          <div class="session-name">${s.companyName}</div>
+          <div class="session-meta">
+            Q${s.quarter} | ${s.phase} | ${s.participantCount}/3人
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    async function selectSession(sessionId) {
+      currentSession = sessions.find(s => s.id === sessionId);
+      if (!currentSession) return;
+      
+      document.getElementById('header-company').textContent = currentSession.companyName;
+      renderSessionList();
+      renderParticipants();
+      
+      await loadMessages();
+      renderDashboard();
+      
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(loadMessages, 2000);
+    }
+    
+    function renderParticipants() {
+      const container = document.getElementById('participants-bar');
+      if (!currentSession) {
+        container.innerHTML = '<span style="color: #8b949e;">选择左侧董事会开始观看</span>';
+        return;
+      }
+      
+      container.innerHTML = `
+        <span class="phase-badge">${currentSession.phase}</span>
+        ${currentSession.participants.map(p => `
+          <div class="participant-chip">
+            <span class="role-badge">${p.role.toUpperCase()}</span>
+            <span>${p.agentName}</span>
+          </div>
+        `).join('')}
+      `;
+    }
+    
+    async function loadMessages() {
+      if (!currentSession) return;
+      
+      try {
+        const res = await fetch(`${API_URL}/api/sessions/${currentSession.id}`);
+        const data = await res.json();
+        if (data.success) {
+          currentSession = { ...currentSession, ...data.data };
+          const newMessages = data.data.messages || [];
+          
+          if (newMessages.length !== messages.length) {
+            messages = newMessages;
+            renderMessages();
+            renderParticipants();
+            renderDashboard();
+          }
+        }
+      } catch (err) {
+        console.error('加载消息失败:', err);
+      }
+    }
+    
+    function renderMessages() {
+      const chat = document.getElementById('chat');
+      if (messages.length === 0) {
+        chat.innerHTML = '<div class="empty-state">暂无消息</div>';
+        return;
+      }
+      
+      chat.innerHTML = messages.map(m => {
+        const isSystem = m.type === 'system' || m.authorId === 'system';
+        const roleClass = isSystem ? 'system' : (m.authorRole || 'system');
+        const avatar = roleAvatars[roleClass] || '🤖';
+        
+        return `
+          <div class="message">
+            <div class="avatar ${roleClass}">${avatar}</div>
+            <div class="message-content">
+              <div class="message-header">
+                <span class="author-name">${m.authorName}</span>
+                ${!isSystem ? `<span class="author-role">${m.authorRole?.toUpperCase()}</span>` : ''}
+                <span class="message-time">${new Date(m.timestamp).toLocaleTimeString()}</span>
+              </div>
+              <div class="message-text ${isSystem ? 'system' : ''}">${escapeHtml(m.content)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      chat.scrollTop = chat.scrollHeight;
+    }
+    
+    function renderDashboard() {
+      if (!currentSession) return;
+      
+      const state = currentSession.companyState || {};
+      const phaseOrder = ['waiting', 'agenda', 'debate', 'voting', 'executing', 'feedback', 'finished'];
+      const currentPhaseIndex = phaseOrder.indexOf(currentSession.phase);
+      
+      document.getElementById('dashboard').innerHTML = `
+        <h3>📊 公司状态</h3>
+        
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-icon">💰</span>
+            <span class="stat-label">现金</span>
+          </div>
+          <div class="stat-value">$${((state.cash || 0) / 10000).toFixed(0)}万</div>
+          <div class="stat-change ${(state.cash || 0) > 800000 ? 'positive' : 'negative'}">
+            ${(state.cash || 0) > 800000 ? '充足' : '紧张'}
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-icon">📈</span>
+            <span class="stat-label">估值</span>
+          </div>
+          <div class="stat-value">$${((state.valuation || 0) / 10000).toFixed(0)}万</div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-icon">👥</span>
+            <span class="stat-label">员工</span>
+          </div>
+          <div class="stat-value">${state.employees || 0}人</div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-header">
+            <span class="stat-icon">🎯</span>
+            <span class="stat-label">市场份额</span>
+          </div>
+          <div class="stat-value">${state.marketShare || 0}%</div>
+        </div>
+        
+        <div class="progress-section">
+          <div class="progress-title">📍 会议进度</div>
+          <div class="timeline">
+            ${phaseOrder.map((phase, index) => {
+              let status = 'pending';
+              if (index < currentPhaseIndex) status = 'completed';
+              if (index === currentPhaseIndex) status = 'active';
+              const labels = {
+                waiting: '等待中',
+                agenda: '议题设置',
+                debate: '讨论阶段',
+                voting: '投票决策',
+                executing: '执行中',
+                feedback: '结果反馈',
+                finished: '已完成'
+              };
+              return `
+                <div class="timeline-item ${status}">
+                  <div class="timeline-dot"></div>
+                  <span>${labels[phase]}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+        
+        <div class="progress-section">
+          <div class="progress-title">💬 讨论统计</div>
+          <div class="stat-card" style="margin-top: 12px;">
+            <div class="stat-value" style="font-size: 20px;">${messages.length}</div>
+            <div class="stat-label">总消息数</div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    loadSessions();
+    setInterval(loadSessions, 5000);
+  </script>
+</body>
+</html>
