@@ -7,7 +7,7 @@ import { createServer } from 'http';
 import path from 'path';
 import sessionRoutes from './routes/sessions';
 import { dbSessionService as sessionService } from './services/databaseSessionService';
-import { testConnection, initializeTables } from './config/database';
+import { initializeTables } from './config/database';
 
 const app = express();
 const PORT = process.env.PORT || 3004;
@@ -44,24 +44,11 @@ app.get('/dashboard', (req, res) => {
 
 // Health check
 app.get('/api/health', async (req, res) => {
-  try {
-    // Check database connection
-    const dbConnected = await testConnection();
-    
-    res.json({ 
-      status: 'ok', 
-      version: '0.3.0',
-      database: dbConnected ? 'connected' : 'disconnected',
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    res.json({ 
-      status: 'ok', 
-      version: '0.3.0',
-      database: 'error',
-      timestamp: new Date().toISOString(),
-    });
-  }
+  res.json({ 
+    status: 'ok', 
+    version: '0.4.0',
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Error handling middleware
@@ -90,14 +77,12 @@ wss.on('connection', (ws, req) => {
       const data = JSON.parse(message.toString());
       
       if (data.type === 'subscribe' && data.sessionId) {
-        // Unsubscribe from previous session if any
         if (unsubscribe) {
           unsubscribe();
         }
         
         sessionId = data.sessionId;
         
-        // Subscribe to session updates
         if (sessionId) {
           unsubscribe = sessionService.subscribe(sessionId, (update: any) => {
             if (ws.readyState === ws.OPEN) {
@@ -110,7 +95,6 @@ wss.on('connection', (ws, req) => {
           });
         }
         
-        // Send initial session state
         try {
           const session = sessionId ? await sessionService.getSession(sessionId) : null;
           if (session && ws.readyState === ws.OPEN) {
@@ -152,7 +136,6 @@ wss.on('connection', (ws, req) => {
 
 // Initialize database and start server
 async function startServer() {
-  // Initialize database (non-blocking)
   console.log('🔌 Connecting to database...');
   const dbConnected = await initializeTables();
   
@@ -162,7 +145,6 @@ async function startServer() {
     console.log('⚠️ Database not available, using in-memory storage');
   }
   
-  // Start server (always)
   server.listen(PORT, () => {
     if (dbConnected) {
       console.log(`🚀 CorpSim Server v0.4.0 running on port ${PORT}`);
