@@ -31,6 +31,8 @@ export interface EventEffects {
   marketShare?: number;
   morale?: number;
   brandPower?: number;
+  userSatisfaction?: number;
+  reputation?: number;
 }
 
 // Predefined random events
