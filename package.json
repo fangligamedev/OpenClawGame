@@ -3,8 +3,8 @@
   "version": "0.4.0",
   "description": "OpenClaw CorpSim - Multi-agent Company Simulation Game",
   "scripts": {
-    "build": "tsc -p server/tsconfig.json",
-    "start": "node server/dist/server.js",
+    "build": "cd server && npm install && npx tsc",
+    "start": "cd server && node dist/server.js",
     "dev": "cd server && npm run dev"
   },
   "dependencies": {
