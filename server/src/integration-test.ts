@@ -1,9 +1,9 @@
 // integration-test.ts - Test v0.4.0 features integration
 
-import { sessionService } from './src/services/sessionService';
-import { aiManager } from './src/ai/aiPlayer';
-import { countdownManager, DEFAULT_COUNTDOWN } from './src/utils/countdown';
-import { eventEngine } from './src/game/events';
+import { sessionService } from './services/sessionService';
+import { aiManager } from './ai/aiPlayer';
+import { countdownManager, DEFAULT_COUNTDOWN } from './utils/countdown';
+import { eventEngine } from './game/events';
 
 async function runIntegrationTest() {
   console.log('🧪 CorpSim v0.4.0 Integration Test\n');
@@ -54,7 +54,7 @@ async function runIntegrationTest() {
     session.id,
     'agenda',
     DEFAULT_COUNTDOWN,
-    (remaining) => {
+    (remaining: number) => {
       if (remaining % 60 === 0) {
         console.log(`  ⏱️  Agenda phase: ${countdown.formatTime()} remaining`);
       }
