@@ -145,30 +145,36 @@ router.post('/:id/join', (req: Request, res: Response) => {
 router.post('/:id/messages', (req: Request, res: Response) => {
   try {
     const { agentId, content, replyTo } = req.body;
+    const sessionId = req.params.id;
+    
+    console.log(`[API /messages] Received request: sessionId=${sessionId}, agentId=${agentId}`);
     
     if (!agentId || !content) {
+      console.error('[API /messages] Missing required fields');
       return res.status(400).json({ 
         success: false, 
         error: 'agentId and content are required' 
       });
     }
 
-    const result = sessionService.sendMessage(req.params.id, {
+    const result = sessionService.sendMessage(sessionId, {
       agentId,
       content,
       replyTo,
     });
 
     if (!result.success) {
+      console.error(`[API /messages] Failed: ${result.error}`);
       return res.status(400).json({ success: false, error: result.error });
     }
 
+    console.log(`[API /messages] Success: messageId=${result.message?.id}`);
     res.status(201).json({
       success: true,
       data: { message: result.message },
     });
   } catch (error) {
-    console.error('Error sending message:', error);
+    console.error('[API /messages] Exception:', error);
     res.status(500).json({ success: false, error: 'Failed to send message' });
   }
 });

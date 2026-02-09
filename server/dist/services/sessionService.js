@@ -113,15 +113,20 @@ class SessionService {
         });
         return true;
     }
-    // Send message
+    // Send message with enhanced logging and validation
     sendMessage(sessionId, req) {
         const session = this.sessions.get(sessionId);
         if (!session) {
+            console.error(`[sendMessage] Session not found: ${sessionId}`);
             return { success: false, error: 'Session not found' };
         }
+        // Log all participants for debugging
+        console.log(`[sendMessage] Looking for agentId: ${req.agentId}`);
+        console.log(`[sendMessage] Available participants:`, session.participants.map(p => ({ agentId: p.agentId, name: p.agentName, role: p.role })));
         const participant = session.participants.find(p => p.agentId === req.agentId);
         if (!participant) {
-            return { success: false, error: 'Agent not in session' };
+            console.error(`[sendMessage] Agent not in session: ${req.agentId}`);
+            return { success: false, error: `Agent ${req.agentId} not in session` };
         }
         const message = {
             id: (0, uuid_1.v4)(),
@@ -135,15 +140,23 @@ class SessionService {
             mentions: this.extractMentions(req.content),
             type: 'message',
         };
+        // Ensure message is stored before broadcasting
         session.messages.push(message);
         participant.lastActive = Date.now();
-        // Notify listeners
-        this.notifyUpdate(sessionId, {
-            type: 'new-message',
-            sessionId,
-            timestamp: Date.now(),
-            data: { message },
-        });
+        console.log(`[sendMessage] Message stored: ${message.id} from ${participant.agentName}`);
+        // Notify listeners with confirmation
+        try {
+            this.notifyUpdate(sessionId, {
+                type: 'new-message',
+                sessionId,
+                timestamp: Date.now(),
+                data: { message },
+            });
+            console.log(`[sendMessage] Broadcast successful for message: ${message.id}`);
+        }
+        catch (error) {
+            console.error(`[sendMessage] Broadcast failed:`, error);
+        }
         return { success: true, message };
     }
     // Submit vote
