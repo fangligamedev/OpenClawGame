@@ -2,12 +2,12 @@
 // src/routes/sessions.ts
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const databaseSessionService_1 = require("../services/databaseSessionService");
+const sessionService_1 = require("../services/sessionService");
 const router = (0, express_1.Router)();
 // GET /api/sessions - List all active sessions
-router.get('/', async (req, res) => {
+router.get('/', (req, res) => {
     try {
-        const sessions = await databaseSessionService_1.dbSessionService.listSessions();
+        const sessions = sessionService_1.sessionService.listSessions();
         res.json({
             success: true,
             data: sessions.map((s) => ({
@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
     }
 });
 // POST /api/sessions - Create new session
-router.post('/', async (req, res) => {
+router.post('/', (req, res) => {
     try {
         const { companyName, quarter, createdBy } = req.body;
         if (!companyName || !createdBy) {
@@ -36,7 +36,7 @@ router.post('/', async (req, res) => {
                 error: 'companyName and createdBy are required'
             });
         }
-        const session = await databaseSessionService_1.dbSessionService.createSession({
+        const session = sessionService_1.sessionService.createSession({
             companyName,
             quarter,
             createdBy,
@@ -58,9 +58,9 @@ router.post('/', async (req, res) => {
     }
 });
 // GET /api/sessions/:id - Get session details
-router.get('/:id', async (req, res) => {
+router.get('/:id', (req, res) => {
     try {
-        const session = await databaseSessionService_1.dbSessionService.getSession(req.params.id);
+        const session = sessionService_1.sessionService.getSession(req.params.id);
         if (!session) {
             return res.status(404).json({ success: false, error: 'Session not found' });
         }
@@ -83,7 +83,7 @@ router.get('/:id', async (req, res) => {
                 })),
                 currentAgenda: session.agenda[session.currentAgendaIndex] || null,
                 agendaCount: session.agenda.length,
-                messages: session.messages.slice(-50), // Last 50 messages
+                messages: session.messages.slice(-50),
                 companyState: session.companyState,
                 availableRoles: ['ceo', 'cto', 'cmo'].filter((role) => !session.participants.some((p) => p.role === role)),
             },
@@ -95,7 +95,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 // POST /api/sessions/:id/join - Join session
-router.post('/:id/join', async (req, res) => {
+router.post('/:id/join', (req, res) => {
     try {
         const { agentId, agentName, role, type } = req.body;
         if (!agentId || !agentName || !role) {
@@ -104,7 +104,7 @@ router.post('/:id/join', async (req, res) => {
                 error: 'agentId, agentName, and role are required'
             });
         }
-        const result = await databaseSessionService_1.dbSessionService.joinSession(req.params.id, {
+        const result = sessionService_1.sessionService.joinSession(req.params.id, {
             agentId,
             agentName,
             role,
@@ -127,7 +127,7 @@ router.post('/:id/join', async (req, res) => {
     }
 });
 // POST /api/sessions/:id/messages - Send message
-router.post('/:id/messages', async (req, res) => {
+router.post('/:id/messages', (req, res) => {
     try {
         const { agentId, content, replyTo } = req.body;
         if (!agentId || !content) {
@@ -136,7 +136,7 @@ router.post('/:id/messages', async (req, res) => {
                 error: 'agentId and content are required'
             });
         }
-        const result = await databaseSessionService_1.dbSessionService.sendMessage(req.params.id, {
+        const result = sessionService_1.sessionService.sendMessage(req.params.id, {
             agentId,
             content,
             replyTo,
@@ -155,10 +155,14 @@ router.post('/:id/messages', async (req, res) => {
     }
 });
 // GET /api/sessions/:id/messages - Get messages
-router.get('/:id/messages', async (req, res) => {
+router.get('/:id/messages', (req, res) => {
     try {
+        const session = sessionService_1.sessionService.getSession(req.params.id);
+        if (!session) {
+            return res.status(404).json({ success: false, error: 'Session not found' });
+        }
         const limit = parseInt(req.query.limit) || 50;
-        const messages = await databaseSessionService_1.dbSessionService.getMessages(req.params.id, limit);
+        const messages = session.messages.slice(-limit);
         res.json({
             success: true,
             data: messages,
@@ -170,7 +174,7 @@ router.get('/:id/messages', async (req, res) => {
     }
 });
 // POST /api/sessions/:id/vote - Submit vote
-router.post('/:id/vote', async (req, res) => {
+router.post('/:id/vote', (req, res) => {
     try {
         const { agentId, agendaId, option, reasoning } = req.body;
         if (!agentId || !agendaId || option === undefined) {
@@ -179,7 +183,7 @@ router.post('/:id/vote', async (req, res) => {
                 error: 'agentId, agendaId, and option are required'
             });
         }
-        const result = await databaseSessionService_1.dbSessionService.submitVote(req.params.id, {
+        const result = sessionService_1.sessionService.submitVote(req.params.id, {
             agentId,
             agendaId,
             option,
@@ -198,8 +202,8 @@ router.post('/:id/vote', async (req, res) => {
         res.status(500).json({ success: false, error: 'Failed to submit vote' });
     }
 });
-// POST /api/sessions/:id/agenda - Add agenda item (for testing)
-router.post('/:id/agenda', async (req, res) => {
+// POST /api/sessions/:id/agenda - Add agenda item
+router.post('/:id/agenda', (req, res) => {
     try {
         const { title, description, options, proposedBy } = req.body;
         if (!title || !description || !options || !proposedBy) {
@@ -208,7 +212,7 @@ router.post('/:id/agenda', async (req, res) => {
                 error: 'title, description, options, and proposedBy are required'
             });
         }
-        const success = await databaseSessionService_1.dbSessionService.addAgendaItem(req.params.id, title, description, options, proposedBy);
+        const success = sessionService_1.sessionService.addAgendaItem(req.params.id, title, description, options, proposedBy);
         if (!success) {
             return res.status(400).json({ success: false, error: 'Failed to add agenda' });
         }
@@ -222,14 +226,14 @@ router.post('/:id/agenda', async (req, res) => {
         res.status(500).json({ success: false, error: 'Failed to add agenda' });
     }
 });
-// POST /api/sessions/:id/phase - Transition phase (for testing)
-router.post('/:id/phase', async (req, res) => {
+// POST /api/sessions/:id/phase - Transition phase
+router.post('/:id/phase', (req, res) => {
     try {
         const { phase } = req.body;
         if (!phase) {
             return res.status(400).json({ success: false, error: 'phase is required' });
         }
-        const success = await databaseSessionService_1.dbSessionService.transitionPhase(req.params.id, phase);
+        const success = sessionService_1.sessionService.transitionPhase(req.params.id, phase);
         if (!success) {
             return res.status(400).json({ success: false, error: 'Failed to transition phase' });
         }

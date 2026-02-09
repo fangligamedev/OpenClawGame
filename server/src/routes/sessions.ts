@@ -1,15 +1,15 @@
 // src/routes/sessions.ts
 
 import { Router, Request, Response } from 'express';
-import { dbSessionService as sessionService } from '../services/databaseSessionService';
+import { sessionService } from '../services/sessionService';
 import { Session, Participant } from '../models/types';
 
 const router = Router();
 
 // GET /api/sessions - List all active sessions
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', (req: Request, res: Response) => {
   try {
-    const sessions = await sessionService.listSessions();
+    const sessions = sessionService.listSessions();
     res.json({
       success: true,
       data: sessions.map((s: Session) => ({
@@ -31,7 +31,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // POST /api/sessions - Create new session
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', (req: Request, res: Response) => {
   try {
     const { companyName, quarter, createdBy } = req.body;
     
@@ -42,7 +42,7 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    const session = await sessionService.createSession({
+    const session = sessionService.createSession({
       companyName,
       quarter,
       createdBy,
@@ -65,9 +65,9 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/sessions/:id - Get session details
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', (req: Request, res: Response) => {
   try {
-    const session = await sessionService.getSession(req.params.id);
+    const session = sessionService.getSession(req.params.id);
     
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session not found' });
@@ -92,7 +92,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         })),
         currentAgenda: session.agenda[session.currentAgendaIndex] || null,
         agendaCount: session.agenda.length,
-        messages: session.messages.slice(-50), // Last 50 messages
+        messages: session.messages.slice(-50),
         companyState: session.companyState,
         availableRoles: ['ceo', 'cto', 'cmo'].filter(
           (role: string) => !session.participants.some((p: Participant) => p.role === role)
@@ -106,7 +106,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/sessions/:id/join - Join session
-router.post('/:id/join', async (req: Request, res: Response) => {
+router.post('/:id/join', (req: Request, res: Response) => {
   try {
     const { agentId, agentName, role, type } = req.body;
     
@@ -117,7 +117,7 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       });
     }
 
-    const result = await sessionService.joinSession(req.params.id, {
+    const result = sessionService.joinSession(req.params.id, {
       agentId,
       agentName,
       role,
@@ -142,7 +142,7 @@ router.post('/:id/join', async (req: Request, res: Response) => {
 });
 
 // POST /api/sessions/:id/messages - Send message
-router.post('/:id/messages', async (req: Request, res: Response) => {
+router.post('/:id/messages', (req: Request, res: Response) => {
   try {
     const { agentId, content, replyTo } = req.body;
     
@@ -153,7 +153,7 @@ router.post('/:id/messages', async (req: Request, res: Response) => {
       });
     }
 
-    const result = await sessionService.sendMessage(req.params.id, {
+    const result = sessionService.sendMessage(req.params.id, {
       agentId,
       content,
       replyTo,
@@ -174,10 +174,15 @@ router.post('/:id/messages', async (req: Request, res: Response) => {
 });
 
 // GET /api/sessions/:id/messages - Get messages
-router.get('/:id/messages', async (req: Request, res: Response) => {
+router.get('/:id/messages', (req: Request, res: Response) => {
   try {
+    const session = sessionService.getSession(req.params.id);
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
     const limit = parseInt(req.query.limit as string) || 50;
-    const messages = await sessionService.getMessages(req.params.id, limit);
+    const messages = session.messages.slice(-limit);
     
     res.json({
       success: true,
@@ -190,7 +195,7 @@ router.get('/:id/messages', async (req: Request, res: Response) => {
 });
 
 // POST /api/sessions/:id/vote - Submit vote
-router.post('/:id/vote', async (req: Request, res: Response) => {
+router.post('/:id/vote', (req: Request, res: Response) => {
   try {
     const { agentId, agendaId, option, reasoning } = req.body;
     
@@ -201,7 +206,7 @@ router.post('/:id/vote', async (req: Request, res: Response) => {
       });
     }
 
-    const result = await sessionService.submitVote(req.params.id, {
+    const result = sessionService.submitVote(req.params.id, {
       agentId,
       agendaId,
       option,
@@ -222,8 +227,8 @@ router.post('/:id/vote', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/sessions/:id/agenda - Add agenda item (for testing)
-router.post('/:id/agenda', async (req: Request, res: Response) => {
+// POST /api/sessions/:id/agenda - Add agenda item
+router.post('/:id/agenda', (req: Request, res: Response) => {
   try {
     const { title, description, options, proposedBy } = req.body;
     
@@ -234,7 +239,7 @@ router.post('/:id/agenda', async (req: Request, res: Response) => {
       });
     }
 
-    const success = await sessionService.addAgendaItem(
+    const success = sessionService.addAgendaItem(
       req.params.id,
       title,
       description,
@@ -256,8 +261,8 @@ router.post('/:id/agenda', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/sessions/:id/phase - Transition phase (for testing)
-router.post('/:id/phase', async (req: Request, res: Response) => {
+// POST /api/sessions/:id/phase - Transition phase
+router.post('/:id/phase', (req: Request, res: Response) => {
   try {
     const { phase } = req.body;
     
@@ -265,7 +270,7 @@ router.post('/:id/phase', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'phase is required' });
     }
 
-    const success = await sessionService.transitionPhase(req.params.id, phase);
+    const success = sessionService.transitionPhase(req.params.id, phase);
 
     if (!success) {
       return res.status(400).json({ success: false, error: 'Failed to transition phase' });
