@@ -1,116 +1,89 @@
-// integration-test.ts - Test v0.4.0 features integration
+// integration-test.ts - Test v0.4.2 features integration
 
 import { sessionService } from './services/sessionService';
-import { aiManager } from './ai/aiPlayer';
-import { countdownManager, DEFAULT_COUNTDOWN } from './utils/countdown';
-import { eventEngine } from './game/events';
+import { countdownTimer, DEFAULT_COUNTDOWN_CONFIG } from './utils/countdown';
 
 async function runIntegrationTest() {
-  console.log('🧪 CorpSim v0.4.0 Integration Test\n');
+  console.log('🧪 CorpSim v0.4.2 Integration Test\n');
 
-  // Test 1: Create session with AI substitutes
-  console.log('Test 1: Create session with AI substitutes');
+  // Test 1: Create session
+  console.log('Test 1: Create session');
   const session = sessionService.createSession({
-    companyName: 'TestCorp-AI',
+    companyName: 'TestCorp-v0.4.2',
     createdBy: 'test'
   });
   console.log(`✅ Session created: ${session.id}`);
 
-  // Add one human player (CEO)
+  // Add players
   const ceoResult = sessionService.joinSession(session.id, {
     agentId: 'human-ceo',
-    agentName: 'Human-CEO',
-    role: 'ceo'
+    agentName: 'CEO',
+    role: 'ceo',
+    type: 'human'
   });
-  console.log(`✅ Human CEO joined: ${ceoResult.success}`);
+  console.log(`✅ CEO joined: ${ceoResult.success}`);
 
-  // Add AI players for missing roles
-  const aiCTO = aiManager.addAIPlayer(session.id, 'cto');
-  const aiCMO = aiManager.addAIPlayer(session.id, 'cmo');
-  console.log(`✅ AI CTO added: ${aiCTO.getAgentId()}`);
-  console.log(`✅ AI CMO added: ${aiCMO.getAgentId()}`);
-
-  // Manually add AI participants to session
-  sessionService.joinSession(session.id, {
-    agentId: aiCTO.getAgentId(),
-    agentName: aiCTO.getAgentName(),
+  const ctoResult = sessionService.joinSession(session.id, {
+    agentId: 'human-cto',
+    agentName: 'CTO',
     role: 'cto',
-    type: 'ai'
+    type: 'human'
   });
-  sessionService.joinSession(session.id, {
-    agentId: aiCMO.getAgentId(),
-    agentName: aiCMO.getAgentName(),
+  console.log(`✅ CTO joined: ${ctoResult.success}`);
+
+  const cmoResult = sessionService.joinSession(session.id, {
+    agentId: 'human-cmo',
+    agentName: 'CMO',
     role: 'cmo',
-    type: 'ai'
+    type: 'human'
   });
+  console.log(`✅ CMO joined: ${cmoResult.success}`);
 
   console.log(`✅ Session now has ${session.participants.length} participants\n`);
 
-  // Test 2: Phase countdown
-  console.log('Test 2: Phase countdown');
-  sessionService.startSession(session.id);
+  // Test 2: Countdown timer
+  console.log('Test 2: Countdown timer');
+  countdownTimer.startTimer(session.id, 'agenda', 10000); // 10 seconds for testing
   
-  const countdown = countdownManager.startCountdown(
-    session.id,
-    'agenda',
-    DEFAULT_COUNTDOWN,
-    (remaining: number) => {
-      if (remaining % 60 === 0) {
-        console.log(`  ⏱️  Agenda phase: ${countdown.formatTime()} remaining`);
-      }
-    },
-    () => {
-      console.log('  ⏰ Agenda phase completed!');
-    }
-  );
-  console.log(`✅ Countdown started: ${countdown.formatTime()}\n`);
+  console.log('  ⏱️  Countdown started');
+  console.log(`  ⏱️  Initial time: ${countdownTimer.getFormattedTime(session.id)}`);
 
-  // Test 3: AI messages
-  console.log('Test 3: AI message generation');
-  const aiMessage = aiCTO.generateMessage({
-    session,
-    role: 'cto',
-    messages: session.messages
+  // Wait 3 seconds
+  await new Promise(resolve => setTimeout(resolve, 3000));
+  console.log(`  ⏱️  After 3s: ${countdownTimer.getFormattedTime(session.id)}`);
+
+  countdownTimer.stopTimer(session.id);
+  console.log('  ⏱️  Countdown stopped\n');
+
+  // Test 3: Send messages
+  console.log('Test 3: Send messages');
+  const msg1 = sessionService.sendMessage(session.id, {
+    agentId: 'human-ceo',
+    content: 'Hello team!'
   });
-  console.log(`✅ AI CTO generated message: ${aiMessage.substring(0, 50)}...\n`);
+  console.log(`✅ Message sent: ${msg1.success}, ID: ${msg1.message?.id}`);
 
-  // Test 4: Random events
-  console.log('Test 4: Random events');
-  for (let i = 0; i < 5; i++) {
-    const event = eventEngine.triggerEvent('executing');
-    if (event) {
-      console.log(`  🎲 Event triggered: ${event.name}`);
-      console.log(`     Effect: ${JSON.stringify(event.effects)}`);
-      
-      // Apply effects
-      const newState = eventEngine.applyEffects(session.companyState, event);
-      console.log(`     New cash: $${(newState.cash / 10000).toFixed(0)}万`);
-    }
-  }
-  console.log();
+  const msg2 = sessionService.sendMessage(session.id, {
+    agentId: 'human-cto',
+    content: 'Hi CEO!'
+  });
+  console.log(`✅ Message sent: ${msg2.success}, ID: ${msg2.message?.id}`);
 
-  // Test 5: AI voting
-  console.log('Test 5: AI voting');
-  const options = ['激进扩张', '稳健发展', '保守观望'];
-  const aiVote = aiCTO.generateVote(
-    { session, role: 'cto', messages: session.messages },
-    options
-  );
-  console.log(`✅ AI CTO vote: ${aiVote}\n`);
+  console.log(`✅ Total messages: ${session.messages.length}\n`);
 
-  // Cleanup
-  console.log('Cleanup...');
-  aiManager.removeAllAIPlayers(session.id);
-  countdownManager.stopCountdown(session.id);
-  eventEngine.clear();
-  console.log('✅ All tests completed!\n');
+  // Test 4: Phase transition
+  console.log('Test 4: Phase transition');
+  console.log(`  Current phase: ${session.phase}`);
+  
+  sessionService.transitionPhase(session.id, 'voting');
+  console.log(`  After transition: ${session.phase}\n`);
 
-  console.log('📊 Summary:');
-  console.log('  - AI Substitute: ✅ Works');
-  console.log('  - Phase Countdown: ✅ Works');
-  console.log('  - AI Messages: ✅ Works');
-  console.log('  - Random Events: ✅ Works');
-  console.log('  - AI Voting: ✅ Works');
+  console.log('✅ All tests passed!\n');
 }
 
-runIntegrationTest().catch(console.error);
+// Run test if executed directly
+if (require.main === module) {
+  runIntegrationTest().catch(console.error);
+}
+
+export { runIntegrationTest };

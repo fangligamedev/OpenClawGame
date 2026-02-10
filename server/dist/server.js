@@ -192,7 +192,7 @@ wss.on('connection', (ws, req) => {
                 agentId = data.agentId;
                 console.log(`[WebSocket] ${wsId} subscribed to session ${sessionId}, agent ${agentId}`);
                 // 记录连接（支持断线重连）
-                if (agentId) {
+                if (agentId && sessionId) {
                     const result = reconnection_1.reconnectionHandler.playerConnected(sessionId, agentId, wsId);
                     // 如果是重连，发送错过的消息
                     if (result.isReconnecting && result.missedMessages && result.missedMessages.length > 0) {

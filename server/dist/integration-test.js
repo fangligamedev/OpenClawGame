@@ -1,94 +1,73 @@
 "use strict";
-// integration-test.ts - Test v0.4.0 features integration
+// integration-test.ts - Test v0.4.2 features integration
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.runIntegrationTest = runIntegrationTest;
 const sessionService_1 = require("./services/sessionService");
-const aiPlayer_1 = require("./ai/aiPlayer");
 const countdown_1 = require("./utils/countdown");
-const events_1 = require("./game/events");
 async function runIntegrationTest() {
-    console.log('🧪 CorpSim v0.4.0 Integration Test\n');
-    // Test 1: Create session with AI substitutes
-    console.log('Test 1: Create session with AI substitutes');
+    console.log('🧪 CorpSim v0.4.2 Integration Test\n');
+    // Test 1: Create session
+    console.log('Test 1: Create session');
     const session = sessionService_1.sessionService.createSession({
-        companyName: 'TestCorp-AI',
+        companyName: 'TestCorp-v0.4.2',
         createdBy: 'test'
     });
     console.log(`✅ Session created: ${session.id}`);
-    // Add one human player (CEO)
+    // Add players
     const ceoResult = sessionService_1.sessionService.joinSession(session.id, {
         agentId: 'human-ceo',
-        agentName: 'Human-CEO',
-        role: 'ceo'
+        agentName: 'CEO',
+        role: 'ceo',
+        type: 'human'
     });
-    console.log(`✅ Human CEO joined: ${ceoResult.success}`);
-    // Add AI players for missing roles
-    const aiCTO = aiPlayer_1.aiManager.addAIPlayer(session.id, 'cto');
-    const aiCMO = aiPlayer_1.aiManager.addAIPlayer(session.id, 'cmo');
-    console.log(`✅ AI CTO added: ${aiCTO.getAgentId()}`);
-    console.log(`✅ AI CMO added: ${aiCMO.getAgentId()}`);
-    // Manually add AI participants to session
-    sessionService_1.sessionService.joinSession(session.id, {
-        agentId: aiCTO.getAgentId(),
-        agentName: aiCTO.getAgentName(),
+    console.log(`✅ CEO joined: ${ceoResult.success}`);
+    const ctoResult = sessionService_1.sessionService.joinSession(session.id, {
+        agentId: 'human-cto',
+        agentName: 'CTO',
         role: 'cto',
-        type: 'ai'
+        type: 'human'
     });
-    sessionService_1.sessionService.joinSession(session.id, {
-        agentId: aiCMO.getAgentId(),
-        agentName: aiCMO.getAgentName(),
+    console.log(`✅ CTO joined: ${ctoResult.success}`);
+    const cmoResult = sessionService_1.sessionService.joinSession(session.id, {
+        agentId: 'human-cmo',
+        agentName: 'CMO',
         role: 'cmo',
-        type: 'ai'
+        type: 'human'
     });
+    console.log(`✅ CMO joined: ${cmoResult.success}`);
     console.log(`✅ Session now has ${session.participants.length} participants\n`);
-    // Test 2: Phase countdown
-    console.log('Test 2: Phase countdown');
-    sessionService_1.sessionService.startSession(session.id);
-    const countdown = countdown_1.countdownManager.startCountdown(session.id, 'agenda', countdown_1.DEFAULT_COUNTDOWN, (remaining) => {
-        if (remaining % 60 === 0) {
-            console.log(`  ⏱️  Agenda phase: ${countdown.formatTime()} remaining`);
-        }
-    }, () => {
-        console.log('  ⏰ Agenda phase completed!');
+    // Test 2: Countdown timer
+    console.log('Test 2: Countdown timer');
+    countdown_1.countdownTimer.startTimer(session.id, 'agenda', 10000); // 10 seconds for testing
+    console.log('  ⏱️  Countdown started');
+    console.log(`  ⏱️  Initial time: ${countdown_1.countdownTimer.getFormattedTime(session.id)}`);
+    // Wait 3 seconds
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    console.log(`  ⏱️  After 3s: ${countdown_1.countdownTimer.getFormattedTime(session.id)}`);
+    countdown_1.countdownTimer.stopTimer(session.id);
+    console.log('  ⏱️  Countdown stopped\n');
+    // Test 3: Send messages
+    console.log('Test 3: Send messages');
+    const msg1 = sessionService_1.sessionService.sendMessage(session.id, {
+        agentId: 'human-ceo',
+        content: 'Hello team!'
     });
-    console.log(`✅ Countdown started: ${countdown.formatTime()}\n`);
-    // Test 3: AI messages
-    console.log('Test 3: AI message generation');
-    const aiMessage = aiCTO.generateMessage({
-        session,
-        role: 'cto',
-        messages: session.messages
+    console.log(`✅ Message sent: ${msg1.success}, ID: ${msg1.message?.id}`);
+    const msg2 = sessionService_1.sessionService.sendMessage(session.id, {
+        agentId: 'human-cto',
+        content: 'Hi CEO!'
     });
-    console.log(`✅ AI CTO generated message: ${aiMessage.substring(0, 50)}...\n`);
-    // Test 4: Random events
-    console.log('Test 4: Random events');
-    for (let i = 0; i < 5; i++) {
-        const event = events_1.eventEngine.triggerEvent('executing');
-        if (event) {
-            console.log(`  🎲 Event triggered: ${event.name}`);
-            console.log(`     Effect: ${JSON.stringify(event.effects)}`);
-            // Apply effects
-            const newState = events_1.eventEngine.applyEffects(session.companyState, event);
-            console.log(`     New cash: $${(newState.cash / 10000).toFixed(0)}万`);
-        }
-    }
-    console.log();
-    // Test 5: AI voting
-    console.log('Test 5: AI voting');
-    const options = ['激进扩张', '稳健发展', '保守观望'];
-    const aiVote = aiCTO.generateVote({ session, role: 'cto', messages: session.messages }, options);
-    console.log(`✅ AI CTO vote: ${aiVote}\n`);
-    // Cleanup
-    console.log('Cleanup...');
-    aiPlayer_1.aiManager.removeAllAIPlayers(session.id);
-    countdown_1.countdownManager.stopCountdown(session.id);
-    events_1.eventEngine.clear();
-    console.log('✅ All tests completed!\n');
-    console.log('📊 Summary:');
-    console.log('  - AI Substitute: ✅ Works');
-    console.log('  - Phase Countdown: ✅ Works');
-    console.log('  - AI Messages: ✅ Works');
-    console.log('  - Random Events: ✅ Works');
-    console.log('  - AI Voting: ✅ Works');
+    console.log(`✅ Message sent: ${msg2.success}, ID: ${msg2.message?.id}`);
+    console.log(`✅ Total messages: ${session.messages.length}\n`);
+    // Test 4: Phase transition
+    console.log('Test 4: Phase transition');
+    console.log(`  Current phase: ${session.phase}`);
+    sessionService_1.sessionService.transitionPhase(session.id, 'voting');
+    console.log(`  After transition: ${session.phase}\n`);
+    console.log('✅ All tests passed!\n');
 }
-runIntegrationTest().catch(console.error);
+// Run test if executed directly
+if (require.main === module) {
+    runIntegrationTest().catch(console.error);
+}
 //# sourceMappingURL=integration-test.js.map

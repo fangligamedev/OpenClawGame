@@ -230,8 +230,8 @@ wss.on('connection', (ws: WebSocket, req) => {
         console.log(`[WebSocket] ${wsId} subscribed to session ${sessionId}, agent ${agentId}`);
         
         // 记录连接（支持断线重连）
-        if (agentId) {
-          const result = reconnectionHandler.playerConnected(sessionId, agentId, wsId);
+        if (agentId && sessionId) {
+          const result = reconnectionHandler.playerConnected(sessionId as string, agentId as string, wsId);
           
           // 如果是重连，发送错过的消息
           if (result.isReconnecting && result.missedMessages && result.missedMessages.length > 0) {
@@ -275,14 +275,14 @@ wss.on('connection', (ws: WebSocket, req) => {
         
         // 更新最后看到时间
         if (sessionId && agentId) {
-          reconnectionHandler.updateLastSeen(sessionId, agentId as string);
-          
+          reconnectionHandler.updateLastSeen(sessionId as string, agentId as string);
+
           // 如果是CEO，记录活动
-          const session = sessionService.getSession(sessionId);
+          const session = sessionService.getSession(sessionId as string);
           if (session) {
             const participant = session.participants.find(p => p.agentId === agentId);
             if (participant && participant.role === 'ceo') {
-              ceoActivityMonitor.recordActivity(sessionId);
+              ceoActivityMonitor.recordActivity(sessionId as string);
             }
           }
         }
