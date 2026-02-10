@@ -1,133 +1,192 @@
-// src/utils/countdown.ts
-// Phase countdown timer for CorpSim
+// server/src/utils/countdown.ts
+// 游戏阶段倒计时系统
+
+import { EventEmitter } from 'events';
 
 export interface CountdownConfig {
-  waiting: number;   // seconds
-  agenda: number;    // seconds
-  debate: number;    // seconds
-  voting: number;    // seconds
-  executing: number; // seconds
-  feedback: number;  // seconds
+  agenda: number;      // 议题讨论时长 (毫秒)
+  voting: number;      // 投票时长 (毫秒)
+  executing: number;   // 执行阶段时长 (毫秒)
 }
 
-export const DEFAULT_COUNTDOWN: CountdownConfig = {
-  waiting: 300,    // 5 minutes
-  agenda: 600,     // 10 minutes
-  debate: 600,     // 10 minutes
-  voting: 180,     // 3 minutes
-  executing: 60,   // 1 minute
-  feedback: 300,   // 5 minutes
+// 默认配置
+export const DEFAULT_COUNTDOWN_CONFIG: CountdownConfig = {
+  agenda: 10 * 60 * 1000,      // 10分钟
+  voting: 5 * 60 * 1000,       // 5分钟
+  executing: 3 * 60 * 1000,    // 3分钟
 };
 
-export class PhaseCountdown {
-  private sessionId: string;
-  private phase: string;
-  private remaining: number;
-  private total: number;
-  private interval: NodeJS.Timeout | null = null;
-  private onTick: (remaining: number) => void;
-  private onComplete: () => void;
+export interface CountdownState {
+  sessionId: string;
+  phase: string;
+  totalTime: number;
+  remainingTime: number;
+  isPaused: boolean;
+  lastTick: number;
+}
 
-  constructor(
-    sessionId: string,
-    phase: string,
-    config: CountdownConfig,
-    onTick: (remaining: number) => void,
-    onComplete: () => void
-  ) {
-    this.sessionId = sessionId;
-    this.phase = phase;
-    this.total = config[phase as keyof CountdownConfig] || 300;
-    this.remaining = this.total;
-    this.onTick = onTick;
-    this.onComplete = onComplete;
+export class CountdownTimer extends EventEmitter {
+  private timers: Map<string, NodeJS.Timeout> = new Map();
+  private states: Map<string, CountdownState> = new Map();
+  private config: CountdownConfig;
+
+  constructor(config: CountdownConfig = DEFAULT_COUNTDOWN_CONFIG) {
+    super();
+    this.config = config;
   }
 
-  start(): void {
-    console.log(`[Countdown ${this.sessionId}] Started ${this.phase}: ${this.remaining}s`);
-    
-    this.interval = setInterval(() => {
-      this.remaining--;
-      this.onTick(this.remaining);
-      
-      if (this.remaining <= 0) {
-        this.complete();
-      }
+  /**
+   * 开始倒计时
+   * @param sessionId 会话ID
+   * @param phase 当前阶段
+   * @param customDuration 自定义时长（可选）
+   */
+  startTimer(
+    sessionId: string,
+    phase: keyof CountdownConfig,
+    customDuration?: number
+  ): void {
+    // 停止之前的定时器
+    this.stopTimer(sessionId);
+
+    const duration = customDuration || this.config[phase];
+    const now = Date.now();
+
+    const state: CountdownState = {
+      sessionId,
+      phase,
+      totalTime: duration,
+      remainingTime: duration,
+      isPaused: false,
+      lastTick: now,
+    };
+
+    this.states.set(sessionId, state);
+
+    // 立即触发一次tick
+    this.emit('tick', sessionId, state);
+
+    // 启动定时器（每秒更新）
+    const timer = setInterval(() => {
+      this.tick(sessionId);
     }, 1000);
+
+    this.timers.set(sessionId, timer);
+
+    console.log(`[Countdown] Started: session=${sessionId}, phase=${phase}, duration=${duration}ms`);
   }
 
-  stop(): void {
-    if (this.interval) {
-      clearInterval(this.interval);
-      this.interval = null;
+  /**
+   * 每秒更新倒计时
+   */
+  private tick(sessionId: string): void {
+    const state = this.states.get(sessionId);
+    if (!state || state.isPaused) return;
+
+    const now = Date.now();
+    const delta = now - state.lastTick;
+    state.lastTick = now;
+    state.remainingTime = Math.max(0, state.remainingTime - delta);
+
+    // 触发tick事件
+    this.emit('tick', sessionId, state);
+
+    // 检查是否超时
+    if (state.remainingTime <= 0) {
+      this.onTimeout(sessionId);
+    }
+
+    // 最后60秒警告
+    if (state.remainingTime <= 60000 && state.remainingTime > 59000) {
+      this.emit('warning', sessionId, state);
     }
   }
 
-  complete(): void {
-    this.stop();
-    console.log(`[Countdown ${this.sessionId}] Completed ${this.phase}`);
-    this.onComplete();
-  }
+  /**
+   * 超时处理
+   */
+  private onTimeout(sessionId: string): void {
+    const state = this.states.get(sessionId);
+    if (!state) return;
 
-  getRemaining(): number {
-    return this.remaining;
-  }
-
-  getProgress(): number {
-    return ((this.total - this.remaining) / this.total) * 100;
-  }
-
-  // Format remaining time as MM:SS
-  formatTime(): string {
-    const minutes = Math.floor(this.remaining / 60);
-    const seconds = this.remaining % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  }
-
-  // Check if time is running low (less than 30 seconds)
-  isRunningLow(): boolean {
-    return this.remaining <= 30;
-  }
-}
-
-// Countdown manager for multiple sessions
-export class CountdownManager {
-  private countdowns: Map<string, PhaseCountdown> = new Map();
-
-  startCountdown(
-    sessionId: string,
-    phase: string,
-    config: CountdownConfig,
-    onTick: (remaining: number) => void,
-    onComplete: () => void
-  ): PhaseCountdown {
-    // Stop existing countdown for this session
-    this.stopCountdown(sessionId);
+    console.log(`[Countdown] Timeout: session=${sessionId}, phase=${state.phase}`);
     
-    const countdown = new PhaseCountdown(sessionId, phase, config, onTick, onComplete);
-    this.countdowns.set(sessionId, countdown);
-    countdown.start();
-    return countdown;
+    this.emit('timeout', sessionId, state);
+    this.stopTimer(sessionId);
   }
 
-  stopCountdown(sessionId: string): void {
-    const countdown = this.countdowns.get(sessionId);
-    if (countdown) {
-      countdown.stop();
-      this.countdowns.delete(sessionId);
+  /**
+   * 停止倒计时
+   */
+  stopTimer(sessionId: string): void {
+    const timer = this.timers.get(sessionId);
+    if (timer) {
+      clearInterval(timer);
+      this.timers.delete(sessionId);
+      console.log(`[Countdown] Stopped: session=${sessionId}`);
     }
   }
 
-  getCountdown(sessionId: string): PhaseCountdown | undefined {
-    return this.countdowns.get(sessionId);
+  /**
+   * 暂停倒计时
+   */
+  pauseTimer(sessionId: string): void {
+    const state = this.states.get(sessionId);
+    if (state) {
+      state.isPaused = true;
+      console.log(`[Countdown] Paused: session=${sessionId}`);
+    }
   }
 
-  // Format time for display
-  static formatTime(seconds: number): string {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  /**
+   * 恢复倒计时
+   */
+  resumeTimer(sessionId: string): void {
+    const state = this.states.get(sessionId);
+    if (state) {
+      state.isPaused = false;
+      state.lastTick = Date.now();
+      console.log(`[Countdown] Resumed: session=${sessionId}`);
+    }
+  }
+
+  /**
+   * 获取倒计时状态
+   */
+  getState(sessionId: string): CountdownState | undefined {
+    return this.states.get(sessionId);
+  }
+
+  /**
+   * 获取剩余时间（毫秒）
+   */
+  getRemainingTime(sessionId: string): number {
+    const state = this.states.get(sessionId);
+    return state ? state.remainingTime : 0;
+  }
+
+  /**
+   * 获取格式化的剩余时间（MM:SS）
+   */
+  getFormattedTime(sessionId: string): string {
+    const remaining = this.getRemainingTime(sessionId);
+    const minutes = Math.floor(remaining / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * 清理所有定时器
+   */
+  cleanup(): void {
+    this.timers.forEach((timer, sessionId) => {
+      clearInterval(timer);
+      console.log(`[Countdown] Cleaned up: session=${sessionId}`);
+    });
+    this.timers.clear();
+    this.states.clear();
   }
 }
 
-export const countdownManager = new CountdownManager();
+// 导出单例
+export const countdownTimer = new CountdownTimer();
