@@ -2,6 +2,8 @@
 
 import { Router, Request, Response } from 'express';
 import { sessionService } from '../services/sessionService';
+import { roleManager } from '../services/roleManager';
+import { rateLimiter } from '../services/rateLimiter';
 import { Session, Participant } from '../models/types';
 
 const router = Router();
@@ -19,9 +21,8 @@ router.get('/', (req: Request, res: Response) => {
         phase: s.phase,
         participantCount: s.participants.length,
         createdAt: s.createdAt,
-        availableRoles: ['ceo', 'cto', 'cmo'].filter(
-          (role: string) => !s.participants.some((p: Participant) => p.role === role)
-        ),
+        availableRoles: roleManager.getAvailableRoles(s.id),
+        isFull: roleManager.isSessionFull(s.id),
       })),
     });
   } catch (error) {
@@ -48,6 +49,9 @@ router.post('/', (req: Request, res: Response) => {
       createdBy,
     });
 
+    // Initialize role manager for this session
+    roleManager.initializeSession(session.id);
+
     res.status(201).json({
       success: true,
       data: {
@@ -56,6 +60,7 @@ router.post('/', (req: Request, res: Response) => {
         quarter: session.quarter,
         phase: session.phase,
         joinUrl: `/api/sessions/${session.id}/join`,
+        availableRoles: ['ceo', 'cto', 'cmo'],
       },
     });
   } catch (error) {
@@ -94,9 +99,8 @@ router.get('/:id', (req: Request, res: Response) => {
         agendaCount: session.agenda.length,
         messages: session.messages.slice(-50),
         companyState: session.companyState,
-        availableRoles: ['ceo', 'cto', 'cmo'].filter(
-          (role: string) => !session.participants.some((p: Participant) => p.role === role)
-        ),
+        availableRoles: roleManager.getAvailableRoles(session.id),
+        isFull: roleManager.isSessionFull(session.id),
       },
     });
   } catch (error) {
@@ -132,7 +136,10 @@ router.post('/:id/join', (req: Request, res: Response) => {
       success: true,
       data: {
         participant: result.participant,
+        token: result.token,
         message: `Joined as ${role.toUpperCase()}`,
+        availableRoles: roleManager.getAvailableRoles(req.params.id),
+        isSessionFull: roleManager.isSessionFull(req.params.id),
       },
     });
   } catch (error) {
@@ -141,19 +148,30 @@ router.post('/:id/join', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/sessions/:id/messages - Send message
+// POST /api/sessions/:id/messages - Send message (with rate limiting)
 router.post('/:id/messages', (req: Request, res: Response) => {
   try {
     const { agentId, content, replyTo } = req.body;
     const sessionId = req.params.id;
-    
+
     console.log(`[API /messages] Received request: sessionId=${sessionId}, agentId=${agentId}`);
-    
+
     if (!agentId || !content) {
       console.error('[API /messages] Missing required fields');
-      return res.status(400).json({ 
-        success: false, 
-        error: 'agentId and content are required' 
+      return res.status(400).json({
+        success: false,
+        error: 'agentId and content are required'
+      });
+    }
+
+    // Check rate limit
+    const rateLimitResult = rateLimiter.canMakeRequest(agentId);
+    if (!rateLimitResult.allowed) {
+      console.error(`[API /messages] Rate limit exceeded for agent: ${agentId}`);
+      return res.status(429).json({
+        success: false,
+        error: 'Rate limit exceeded. Please wait before sending more messages.',
+        retryAfter: rateLimitResult.retryAfter,
       });
     }
 

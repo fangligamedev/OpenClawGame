@@ -3,6 +3,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sessionService = exports.SessionService = void 0;
 const uuid_1 = require("uuid");
+const roleManager_1 = require("./roleManager");
+const auth_1 = require("../middleware/auth");
 class SessionService {
     sessions = new Map();
     updateCallbacks = new Map();
@@ -49,7 +51,7 @@ class SessionService {
             .filter(s => s.phase !== 'finished')
             .sort((a, b) => b.createdAt - a.createdAt);
     }
-    // Join session
+    // Join session with role management and auth
     joinSession(sessionId, req) {
         const session = this.sessions.get(sessionId);
         if (!session) {
@@ -58,15 +60,29 @@ class SessionService {
         if (session.phase !== 'waiting') {
             return { success: false, error: 'Session already started' };
         }
-        // Check if role is available
-        const existingParticipant = session.participants.find(p => p.role === req.role);
-        if (existingParticipant) {
-            return { success: false, error: `Role ${req.role} already taken` };
+        // Use roleManager to assign role (enforces uniqueness)
+        const roleResult = roleManager_1.roleManager.assignRole(sessionId, req.agentId, req.agentName, req.role);
+        if (!roleResult.success) {
+            return { success: false, error: roleResult.error };
         }
-        // Check if agent already joined
+        // Check if agent already joined in session data
         const existingAgent = session.participants.find(p => p.agentId === req.agentId);
         if (existingAgent) {
-            return { success: false, error: 'Agent already in session' };
+            // Update existing participant
+            existingAgent.agentName = req.agentName;
+            existingAgent.role = req.role;
+            existingAgent.status = 'online';
+            existingAgent.lastActive = Date.now();
+            // Generate auth token
+            const token = (0, auth_1.generateToken)(req.agentId);
+            // Notify listeners
+            this.notifyUpdate(sessionId, {
+                type: 'participant-rejoined',
+                sessionId,
+                timestamp: Date.now(),
+                data: { participant: existingAgent },
+            });
+            return { success: true, participant: existingAgent, token };
         }
         const participant = {
             id: (0, uuid_1.v4)(),
@@ -79,10 +95,12 @@ class SessionService {
             status: 'online',
         };
         session.participants.push(participant);
+        // Generate auth token
+        const token = (0, auth_1.generateToken)(req.agentId);
         // Add join message
         this.addSystemMessage(sessionId, `${req.agentName} 加入董事会，担任 ${req.role.toUpperCase()}`);
-        // Check if session should auto-start
-        if (session.config.autoStart && session.participants.length >= session.config.maxParticipants) {
+        // Check if session should auto-start (only if all 3 roles are filled)
+        if (session.config.autoStart && roleManager_1.roleManager.isSessionFull(sessionId)) {
             this.startSession(sessionId);
         }
         // Notify listeners
@@ -92,7 +110,7 @@ class SessionService {
             timestamp: Date.now(),
             data: { participant },
         });
-        return { success: true, participant };
+        return { success: true, participant, token };
     }
     // Start session (begin meeting)
     startSession(sessionId) {

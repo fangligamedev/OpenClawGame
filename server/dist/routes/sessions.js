@@ -3,6 +3,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const sessionService_1 = require("../services/sessionService");
+const roleManager_1 = require("../services/roleManager");
+const rateLimiter_1 = require("../services/rateLimiter");
 const router = (0, express_1.Router)();
 // GET /api/sessions - List all active sessions
 router.get('/', (req, res) => {
@@ -17,7 +19,8 @@ router.get('/', (req, res) => {
                 phase: s.phase,
                 participantCount: s.participants.length,
                 createdAt: s.createdAt,
-                availableRoles: ['ceo', 'cto', 'cmo'].filter((role) => !s.participants.some((p) => p.role === role)),
+                availableRoles: roleManager_1.roleManager.getAvailableRoles(s.id),
+                isFull: roleManager_1.roleManager.isSessionFull(s.id),
             })),
         });
     }
@@ -41,6 +44,8 @@ router.post('/', (req, res) => {
             quarter,
             createdBy,
         });
+        // Initialize role manager for this session
+        roleManager_1.roleManager.initializeSession(session.id);
         res.status(201).json({
             success: true,
             data: {
@@ -49,6 +54,7 @@ router.post('/', (req, res) => {
                 quarter: session.quarter,
                 phase: session.phase,
                 joinUrl: `/api/sessions/${session.id}/join`,
+                availableRoles: ['ceo', 'cto', 'cmo'],
             },
         });
     }
@@ -85,7 +91,8 @@ router.get('/:id', (req, res) => {
                 agendaCount: session.agenda.length,
                 messages: session.messages.slice(-50),
                 companyState: session.companyState,
-                availableRoles: ['ceo', 'cto', 'cmo'].filter((role) => !session.participants.some((p) => p.role === role)),
+                availableRoles: roleManager_1.roleManager.getAvailableRoles(session.id),
+                isFull: roleManager_1.roleManager.isSessionFull(session.id),
             },
         });
     }
@@ -117,7 +124,10 @@ router.post('/:id/join', (req, res) => {
             success: true,
             data: {
                 participant: result.participant,
+                token: result.token,
                 message: `Joined as ${role.toUpperCase()}`,
+                availableRoles: roleManager_1.roleManager.getAvailableRoles(req.params.id),
+                isSessionFull: roleManager_1.roleManager.isSessionFull(req.params.id),
             },
         });
     }
@@ -126,7 +136,7 @@ router.post('/:id/join', (req, res) => {
         res.status(500).json({ success: false, error: 'Failed to join session' });
     }
 });
-// POST /api/sessions/:id/messages - Send message
+// POST /api/sessions/:id/messages - Send message (with rate limiting)
 router.post('/:id/messages', (req, res) => {
     try {
         const { agentId, content, replyTo } = req.body;
@@ -137,6 +147,16 @@ router.post('/:id/messages', (req, res) => {
             return res.status(400).json({
                 success: false,
                 error: 'agentId and content are required'
+            });
+        }
+        // Check rate limit
+        const rateLimitResult = rateLimiter_1.rateLimiter.canMakeRequest(agentId);
+        if (!rateLimitResult.allowed) {
+            console.error(`[API /messages] Rate limit exceeded for agent: ${agentId}`);
+            return res.status(429).json({
+                success: false,
+                error: 'Rate limit exceeded. Please wait before sending more messages.',
+                retryAfter: rateLimitResult.retryAfter,
             });
         }
         const result = sessionService_1.sessionService.sendMessage(sessionId, {

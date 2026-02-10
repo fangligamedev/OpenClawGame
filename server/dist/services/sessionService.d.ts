@@ -9,6 +9,7 @@ export declare class SessionService {
         success: boolean;
         error?: string;
         participant?: Participant;
+        token?: string;
     };
     startSession(sessionId: string): boolean;
     sendMessage(sessionId: string, req: SendMessageRequest): {
